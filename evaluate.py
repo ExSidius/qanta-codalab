@@ -79,7 +79,7 @@ def retry_get_url(url, retries=5, delay=3):
     return None
 
 
-def get_question_query(qid, question, char_idx, wiki_paragraphs=False):
+def get_question_query(qid, question, evidence, char_idx, wiki_paragraphs=False):
     char_idx = min(char_idx, len(question['text']))
 
     for sent_idx, (st, ed) in enumerate(question['tokenizations']):
@@ -93,29 +93,38 @@ def get_question_query(qid, question, char_idx, wiki_paragraphs=False):
             'text': question['text'][:char_idx]
     }
     if wiki_paragraphs:
-        query['wiki_paragraphs'] = question['annotated_paras'][:sent_idx]
-
+        evidences = evidence['sent_evidences'][:sent_idx+1]
+        #evidences here is a list of lists of length = #sentences seen so far, and each sublist is contains 5 dictionaries for the 5 top sentences
+        query['wiki_paragraphs'] = evidences
     return query
 
 
 
-def get_answer_single(url, questions, char_step_size, wiki_paragraphs=False):
+def get_answer_single(url, questions, evidences, char_step_size, wiki_paragraphs=False):
     elog.info('Collecting responses to questions')
     answers = []
     for question_idx, q in enumerate(tqdm(questions)):
         elog.info(f'Running question_idx={question_idx} qnum={q["qanta_id"]}')
         answers.append([])
         # get an answer every K characters
-        for char_idx in range(1, len(q['text']) + char_step_size,
-                              char_step_size):
-            query = get_question_query(question_idx, q, char_idx, wiki_paragraphs)
-            resp = requests.post(url, json=query).json()
-            query.update(resp)
-            answers[-1].append(query)
+        if wiki_paragraphs:
+            for char_idx in range(1, len(q['text']) + char_step_size,
+                                  char_step_size):
+                query = get_question_query(question_idx, q, evidences[question_idx], char_idx, wiki_paragraphs)
+                resp = requests.post(url, json=query).json()
+                query.update(resp)
+                answers[-1].append(query)
+        else:
+            for char_idx in range(1, len(q['text']) + char_step_size,
+                                  char_step_size):
+                query = get_question_query(question_idx, q, [], char_idx, wiki_paragraphs)
+                resp = requests.post(url, json=query).json()
+                query.update(resp)
+                answers[-1].append(query)    
     return answers
 
 
-def get_answer_batch(url, questions, char_step_size, batch_size, wiki_paragraphs=False):
+def get_answer_batch(url, questions, evidences, char_step_size, batch_size, wiki_paragraphs=False):
     elog.info('Collecting responses to questions in batches', batch_size)
     answers = []
     batch_ids = list(range(0, len(questions), batch_size))
@@ -125,16 +134,29 @@ def get_answer_batch(url, questions, char_step_size, batch_size, wiki_paragraphs
         max_len = max(len(q['text']) for q in qs)
         qids = list(range(batch_idx, batch_ed))
         answers += [[] for _ in qs]
-        for char_idx in range(1, max_len + char_step_size, char_step_size):
-            query = {'questions': []}
-            for i, q in enumerate(qs):
-                query['questions'].append(
-                    get_question_query(qids[i], q, char_idx, wiki_paragraphs))
-            resp = requests.post(url, json=query).json()
-            for i, r in enumerate(resp):
-                q = query['questions'][i]
-                q.update(r)
-                answers[qids[i]].append(q)
+        if wiki_paragraphs:
+            evs = evidences[batch_idx: batch_ed]
+            for char_idx in range(1, max_len + char_step_size, char_step_size):
+                query = {'questions': []}
+                for i, q in enumerate(qs):
+                    query['questions'].append(
+                        get_question_query(qids[i], q, evs[i], char_idx, wiki_paragraphs))
+                resp = requests.post(url, json=query).json()
+                for i, r in enumerate(resp):
+                    q = query['questions'][i]
+                    q.update(r)
+                    answers[qids[i]].append(q)
+        else:
+           for char_idx in range(1, max_len + char_step_size, char_step_size):
+                query = {'questions': []}
+                for i, q in enumerate(qs):
+                    query['questions'].append(
+                        get_question_query(qids[i], q, [], char_idx, wiki_paragraphs))
+                resp = requests.post(url, json=query).json()
+                for i, r in enumerate(resp):
+                    q = query['questions'][i]
+                    q.update(r)
+                    answers[qids[i]].append(q)
     return answers
 
 
@@ -144,6 +166,7 @@ def check_port(hostname, port):
 
 @click.command()
 @click.argument('input_dir')
+#@click.argument('evidence_dir', default='data/evidence_docs_dev_with_sent_text.json')
 @click.argument('output_dir', default='predictions.json')
 @click.argument('score_dir', default='scores.json')
 @click.option('--char_step_size', default=25)
@@ -176,16 +199,22 @@ def evaluate(input_dir, output_dir, score_dir, char_step_size, hostname,
 
         with open(input_dir) as f:
             questions = json.load(f)['questions']
+                  
+        evidences = []
+        if include_wiki_paragraphs:
+            evidence_dir = 'data/evidence_docs_dev_with_sent_text.json'
+            with open(evidence_dir) as f:
+                evidences = json.load(f)['evidence']
 
         if status is not None and status['batch'] is True:
             url = f'http://{hostname}:4861/api/1.0/quizbowl/batch_act'
-            answers = get_answer_batch(url, questions,
+            answers = get_answer_batch(url, questions, evidences,
                                        char_step_size,
                                        status['batch_size'],
                                        wiki_paragraphs=include_wiki_paragraphs)
         else:
             url = f'http://{hostname}:4861/api/1.0/quizbowl/act'
-            answers = get_answer_single(url, questions,
+            answers = get_answer_single(url, questions, evidences,
                                         char_step_size,
                                         wiki_paragraphs=include_wiki_paragraphs)
 
@@ -198,6 +227,7 @@ def evaluate(input_dir, output_dir, score_dir, char_step_size, hostname,
         end_acc = []
         ew = []
         ew_opt = []
+
         for question_idx, guesses in enumerate(answers):
             question = questions[question_idx]
             answer = question['page']
