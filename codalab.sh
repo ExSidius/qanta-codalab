@@ -16,4 +16,3 @@ cd ..
 python evaluate.py --char_step_size 60 --norun-web --wait 5 --curve-pkl curve_pipeline.pkl qanta.dev.2018.04.18.json
 kill $WEB_PID
 rm -rf web
-

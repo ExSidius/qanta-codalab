@@ -118,7 +118,6 @@ def create_app(enable_batch=True):
             for guess, buzz in batch_guess_and_buzz(tfidf_guesser, questions)
         ])
 
-
     return app
 
 
