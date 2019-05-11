@@ -9,8 +9,8 @@ from tqdm import tqdm
 from sklearn.feature_extraction.text import TfidfVectorizer
 from flask import Flask, jsonify, request
 
-from qanta import util
-from qanta.dataset import QuizBowlDataset
+import util
+from dataset import QuizBowlDataset
 
 
 MODEL_PATH = 'tfidf.pickle'
