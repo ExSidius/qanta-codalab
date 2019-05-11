@@ -15,8 +15,6 @@ def logger(log_text):
 			end = time.strftime('%H:%M:%S', time.localtime(end_time))
 			print(f'Finished {log_text} at {end}...')
 
-			difference = time.strftime('%H:%M:%S', time.localtime(end_time - start_time))
-			print(f'It took {difference}...')
 			print()
 			return result
 		return wrapper

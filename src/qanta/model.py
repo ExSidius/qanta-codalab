@@ -36,7 +36,7 @@ def load_data(filename: str, limit: Optional[int] = None) -> List[Example]:
 
 @logger('creating class labels')
 def class_labels(examples: List[Example]) -> Tuple[Dict[str, int], Dict[int, str]]:
-    classes = [example.label for example in examples]
+    classes = set([example.label for example in examples])
     index2class = dict(enumerate(classes))
     class2index = {v: k for k, v in index2class.items()}
     return class2index, index2class
@@ -45,9 +45,13 @@ def class_labels(examples: List[Example]) -> Tuple[Dict[str, int], Dict[int, str
 @logger('loading words')
 def load_words(examples: List[Example]) -> Tuple[List[str], Dict[str, int], Dict[int, str]]:
     words = {kPAD, kUNK}
-    for tokenized_text, _ in examples:
-        words = words.union(set(tokenized_text))
-    words = sorted(words)
+
+    tokenized_texts, _ = zip(*examples)
+    for tokenized_text in tokenized_texts:
+        for token in tokenized_text:
+            if token not in words:
+                words.add(token)
+    words = list(words)
 
     index2word = dict(enumerate(words))
     word2index = {v: k for k, v in index2word.items()}
@@ -189,21 +193,24 @@ def train(args, model, train_data_loader, dev_data_loader, accuracy, device):
     return accuracy
 
 
-class Model(nn.Module):
-    def __init__(self,
-                 n_classes,
-                 vocab_size,
-                 emb_dim=50,
-                 n_hidden_units=50,
-                 nn_dropout=.5):
+class DanModel(nn.Module):
+    """High level model that handles intializing the underlying network
+    architecture, saving, updating examples, and predicting examples.
+    """
 
-        super(Model, self).__init__()
+    #### You don't need to change the parameters for the model for passing tests, might need to tinker to improve performance/handle
+    #### pretrained word embeddings/for your project code.
+
+    def __init__(self, n_classes, vocab_size, emb_dim=50,
+                 n_hidden_units=50, nn_dropout=.5):
+        super(DanModel, self).__init__()
         self.n_classes = n_classes
         self.vocab_size = vocab_size
         self.emb_dim = emb_dim
         self.n_hidden_units = n_hidden_units
         self.nn_dropout = nn_dropout
-        self.embeddings = nn.Embedding(self.vocab_size, self.emb_dim, padding_idx=0)
+        self.embeddings = nn.Embedding(self.vocab_size, self.emb_dim,
+                                       padding_idx=0)
 
         self.linear1 = nn.Linear(emb_dim, n_hidden_units)
         self.linear2 = nn.Linear(n_hidden_units, n_classes)
@@ -238,12 +245,17 @@ class Model(nn.Module):
 
         logits = torch.LongTensor([0.0] * self.n_classes)
 
+        # Complete the forward funtion.  First look up the word embeddings.
         embedding = self.embeddings(input_text)
-        averaged_embedding = embedding.sum(1) / text_len.view(embedding.size(0), -1)
 
+        # Then average them
+        average_embedding = embedding.sum(1) / text_len.view(embedding.size(0),
+                                                             -1)
+
+        # Before feeding them through the network
+
+        logits = self.classifier(average_embedding)
         if is_prob:
-            logits = self.classifier(averaged_embedding)
-        else:
             logits = self._softmax(logits)
 
         return logits
@@ -276,7 +288,7 @@ if __name__ == "__main__":
     dev_examples = load_data(args.dev_file)
     test_examples = load_data(args.test_file)
 
-    voc, word2index, index2word = load_words(training_examples)
+    voc, word2index, index2word = load_words(dev_examples)
 
     class2index, index2class = class_labels(training_examples + dev_examples)
     num_classes = len(class2index)
@@ -313,8 +325,10 @@ if __name__ == "__main__":
         accuracy = 0
         for epoch in range(args.num_epochs):
             print('start epoch %d' % epoch)
-            train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size,
-                                                       sampler=train_sampler, num_workers=0,
+            train_loader = torch.utils.data.DataLoader(train_dataset,
+                                                       batch_size=args.batch_size,
+                                                       sampler=train_sampler,
+                                                       num_workers=0,
                                                        collate_fn=batchify)
             accuracy = train(args, model, train_loader, dev_loader, accuracy, device)
         print('start testing:\n')
