@@ -6,10 +6,10 @@ import torch
 from typing import NamedTuple, List, Dict, Tuple, Optional, Union
 import argparse
 import json
-import time
 import nltk
 
 from helpers import logger
+from embedder import EMBEDDING_LENGTH, Embedder
 
 kUNK = '<unk>'
 kPAD = '<pad>'
@@ -123,7 +123,8 @@ class Model(nn.Module):
 	def __init__(self,
 				 n_classes,
 				 vocab_size,
-				 embedding_dimension=50,
+				 embedding_dimension=EMBEDDING_LENGTH,
+	             embedder=None,
 				 n_hidden=50,
 				 dropout_rate=.5):
 		super(Model, self).__init__()
@@ -134,9 +135,12 @@ class Model(nn.Module):
 		self.n_hidden = n_hidden
 
 		self.embedding_dimension = embedding_dimension
-		self.embeddings = nn.Embedding(self.vocab_size,
-									   self.embedding_dimension,
-									   padding_idx=0)
+		if embedder:
+			self.embeddings = embedder
+		else:
+			self.embeddings = nn.Embedding(self.vocab_size,
+										   self.embedding_dimension,
+										   padding_idx=0)
 
 		self.dropout_rate = dropout_rate
 
@@ -151,7 +155,9 @@ class Model(nn.Module):
 		)
 		self._softmax = nn.Softmax(dim=1)
 
-	def forward(self, input_text, text_len, is_prob=False):
+	def forward(self, input_text: torch.Tensor, text_len: torch.Tensor, is_prob=False):
+
+		breakpoint()
 
 		logits = torch.LongTensor([0.0] * self.n_classes)
 
@@ -246,6 +252,7 @@ if __name__ == "__main__":
 	parser.add_argument('--load-model', type=str, default='dan.pt')
 	parser.add_argument("--limit", help="Number of training documents", type=int, default=-1, required=False)
 	parser.add_argument('--checkpoint', type=int, default=50)
+	parser.add_argument('--use-pretrained-embeddings', type=bool, default=True)
 
 	args = parser.parse_args()
 	args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -256,6 +263,10 @@ if __name__ == "__main__":
 	test_examples = load_data(args.test_file)
 
 	voc, word2index, index2word = load_words(dev_examples)
+
+	embedder = None
+	if args.use_pretrained_embeddings:
+		embedder = Embedder(index2word)
 
 	class2index, index2class = class_labels(training_examples + dev_examples)
 	num_classes = len(class2index)
@@ -278,7 +289,7 @@ if __name__ == "__main__":
 		if args.resume:
 			model = torch.load(args.load_model)
 		else:
-			model = Model(num_classes, len(voc))
+			model = Model(num_classes, len(voc), embedder=embedder)
 			model.to(device)
 
 		print(model)
