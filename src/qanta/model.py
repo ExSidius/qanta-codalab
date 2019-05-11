@@ -62,10 +62,10 @@ def load_words(examples: List[Example]) -> Tuple[
 
 class QuestionDataset(Dataset):
 	def __init__(self,
-	             examples: List[Example],
-	             word2index: Dict[str, int],
-	             num_classes: int,
-	             class2index: Optional[Dict[str, int]] = None):
+				 examples: List[Example],
+				 word2index: Dict[str, int],
+				 num_classes: int,
+				 class2index: Optional[Dict[str, int]] = None):
 		self.tokenized_questions = []
 		self.labels = []
 
@@ -91,8 +91,8 @@ class QuestionDataset(Dataset):
 
 	def vectorize(self, tokenized_text: List[str]) -> List[int]:
 		return [self.word2index[word] if word in self.word2index else
-		        self.word2index[kUNK]
-		        for word in tokenized_text]
+				self.word2index[kUNK]
+				for word in tokenized_text]
 
 
 def batchify(batch: List[Tuple[List[int], int]]) -> Dict[
@@ -121,11 +121,11 @@ def batchify(batch: List[Tuple[List[int], int]]) -> Dict[
 
 class Model(nn.Module):
 	def __init__(self,
-	             n_classes,
-	             vocab_size,
-	             embedding_dimension=50,
-	             n_hidden=50,
-	             dropout_rate=.5):
+				 n_classes,
+				 vocab_size,
+				 embedding_dimension=50,
+				 n_hidden=50,
+				 dropout_rate=.5):
 		super(Model, self).__init__()
 
 		self.n_classes = n_classes
@@ -135,8 +135,8 @@ class Model(nn.Module):
 
 		self.embedding_dimension = embedding_dimension
 		self.embeddings = nn.Embedding(self.vocab_size,
-		                               self.embedding_dimension,
-		                               padding_idx=0)
+									   self.embedding_dimension,
+									   padding_idx=0)
 
 		self.dropout_rate = dropout_rate
 
@@ -157,7 +157,7 @@ class Model(nn.Module):
 
 		embedding = self.embeddings(input_text)
 		average_embedding = embedding.sum(1) / text_len.view(embedding.size(0),
-		                                                     -1)
+															 -1)
 
 		if is_prob:
 			logits = self._softmax(logits)
@@ -168,8 +168,8 @@ class Model(nn.Module):
 
 
 def evaluate(data_loader: torch.utils.data.DataLoader,
-             model: Model,
-             device: torch.device) -> float:
+			 model: Model,
+			 device: torch.device) -> float:
 	model.eval()
 	num_examples = 0
 	error = 0
@@ -190,11 +190,11 @@ def evaluate(data_loader: torch.utils.data.DataLoader,
 
 
 def train(args: argparse.Namespace,
-          model: Model,
-          train_data_loader: torch.utils.data.DataLoader,
-          dev_data_loader: torch.utils.data.DataLoader,
-          accuracy: float,
-          device: torch.device) -> float:
+		  model: Model,
+		  train_data_loader: torch.utils.data.DataLoader,
+		  dev_data_loader: torch.utils.data.DataLoader,
+		  accuracy: float,
+		  device: torch.device) -> float:
 	model.train()
 	optimizer = torch.optim.Adamax(model.parameters())
 	criterion = nn.CrossEntropyLoss()
@@ -266,13 +266,13 @@ if __name__ == "__main__":
 	if args.test:
 		model = torch.load(args.load_model)
 		test_dataset = QuestionDataset(test_examples, word2index, num_classes,
-		                               class2index)
+									   class2index)
 		test_sampler = torch.utils.data.sampler.SequentialSampler(test_dataset)
 		test_loader = torch.utils.data.DataLoader(test_dataset,
-		                                          batch_size=args.batch_size,
-		                                          sampler=test_sampler,
-		                                          num_workers=0,
-		                                          collate_fn=batchify)
+												  batch_size=args.batch_size,
+												  sampler=test_sampler,
+												  num_workers=0,
+												  collate_fn=batchify)
 		evaluate(test_loader, model, device)
 	else:
 		if args.resume:
@@ -284,35 +284,35 @@ if __name__ == "__main__":
 		print(model)
 
 		train_dataset = QuestionDataset(training_examples, word2index,
-		                                num_classes, class2index)
+										num_classes, class2index)
 		train_sampler = torch.utils.data.sampler.RandomSampler(train_dataset)
 
 		dev_dataset = QuestionDataset(dev_examples, word2index, num_classes,
-		                              class2index)
+									  class2index)
 		dev_sampler = torch.utils.data.sampler.SequentialSampler(dev_dataset)
 		dev_loader = torch.utils.data.DataLoader(dev_dataset,
-		                                         batch_size=args.batch_size,
-		                                         sampler=dev_sampler,
-		                                         num_workers=0,
-		                                         collate_fn=batchify)
+												 batch_size=args.batch_size,
+												 sampler=dev_sampler,
+												 num_workers=0,
+												 collate_fn=batchify)
 		accuracy = 0
 		for epoch in range(args.num_epochs):
 			print(f'Start Epoch {epoch}')
 			train_loader = torch.utils.data.DataLoader(train_dataset,
-			                                           batch_size=args.batch_size,
-			                                           sampler=train_sampler,
-			                                           num_workers=0,
-			                                           collate_fn=batchify)
+													   batch_size=args.batch_size,
+													   sampler=train_sampler,
+													   num_workers=0,
+													   collate_fn=batchify)
 			accuracy = train(args, model, train_loader, dev_loader, accuracy,
-			                 device)
+							 device)
 		print('Start Testing:\n')
 
 		test_dataset = QuestionDataset(test_examples, word2index, num_classes,
-		                               class2index)
+									   class2index)
 		test_sampler = torch.utils.data.sampler.SequentialSampler(test_dataset)
 		test_loader = torch.utils.data.DataLoader(test_dataset,
-		                                          batch_size=args.batch_size,
-		                                          sampler=test_sampler,
-		                                          num_workers=0,
-		                                          collate_fn=batchify)
+												  batch_size=args.batch_size,
+												  sampler=test_sampler,
+												  num_workers=0,
+												  collate_fn=batchify)
 		evaluate(test_loader, model, device)
