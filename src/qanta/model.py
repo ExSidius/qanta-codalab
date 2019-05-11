@@ -247,8 +247,8 @@ if __name__ == "__main__":
     parser.add_argument('--grad-clipping', type=int, default=5)
     parser.add_argument('--resume', action='store_true', default=False)
     parser.add_argument('--test', action='store_true', default=False)
-    parser.add_argument('--save-model', type=str, default='q_type.pt')
-    parser.add_argument('--load-model', type=str, default='q_type.pt')
+    parser.add_argument('--save-model', type=str, default='dan.pt')
+    parser.add_argument('--load-model', type=str, default='dan.pt')
     parser.add_argument("--limit", help="Number of training documents", type=int, default=-1, required=False)
     parser.add_argument('--checkpoint', type=int, default=50)
 
