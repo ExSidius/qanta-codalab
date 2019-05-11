@@ -189,17 +189,15 @@ def train(args, model, train_data_loader, dev_data_loader, accuracy, device):
     return accuracy
 
 
-class DanModel(nn.Module):
-    """High level model that handles intializing the underlying network
-    architecture, saving, updating examples, and predicting examples.
-    """
+class Model(nn.Module):
+    def __init__(self,
+                 n_classes,
+                 vocab_size,
+                 emb_dim=50,
+                 n_hidden_units=50,
+                 nn_dropout=.5):
 
-    #### You don't need to change the parameters for the model for passing tests, might need to tinker to improve performance/handle
-    #### pretrained word embeddings/for your project code.
-
-    def __init__(self, n_classes, vocab_size, emb_dim=50,
-                 n_hidden_units=50, nn_dropout=.5):
-        super(DanModel, self).__init__()
+        super(Model, self).__init__()
         self.n_classes = n_classes
         self.vocab_size = vocab_size
         self.emb_dim = emb_dim
@@ -240,16 +238,12 @@ class DanModel(nn.Module):
 
         logits = torch.LongTensor([0.0] * self.n_classes)
 
-        # Complete the forward funtion.  First look up the word embeddings.
         embedding = self.embeddings(input_text)
+        averaged_embedding = embedding.sum(1) / text_len.view(embedding.size(0), -1)
 
-        # Then average them
-        average_embedding = embedding.sum(1) / text_len.view(embedding.size(0), -1)
-
-        # Before feeding them through the network
-
-        logits = self.classifier(average_embedding)
         if is_prob:
+            logits = self.classifier(averaged_embedding)
+        else:
             logits = self._softmax(logits)
 
         return logits
