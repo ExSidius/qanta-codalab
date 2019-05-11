@@ -1,127 +1,92 @@
-import argparse
-import torch
-import torch.nn as nn
-import numpy as np
-
 from torch.utils.data import Dataset
 from torch.nn.utils import clip_grad_norm_
+import torch.nn as nn
+import torch
+
+
+from typing import NamedTuple, List, Dict, Tuple, Optional
+import argparse
 import json
 import time
 import nltk
+
+from helpers import logger
 
 kUNK = '<unk>'
 kPAD = '<pad>'
 
 
-# You don't need to change this funtion
-def class_labels(data):
-    class_to_i = {}
-    i_to_class = {}
-    i = 0
-    for _, ans in data:
-        if ans not in class_to_i.keys():
-            class_to_i[ans] = i
-            i_to_class[i] = ans
-            i += 1
-    return class_to_i, i_to_class
+class Example(NamedTuple):
+    tokenized_text: List[str]
+    label: str
 
 
-# You don't need to change this funtion
-def load_data(filename, lim):
-    """
-    load the json file into data list
-    """
-
-    data = list()
+@logger('loading data')
+def load_data(filename: str, limit: Optional[int] = None) -> List[Example]:
+    data = []
     with open(filename) as json_data:
-        if lim > 0:
-            questions = json.load(json_data)["questions"][:lim]
-        else:
-            questions = json.load(json_data)["questions"]
-        for q in questions:
-            q_text = nltk.word_tokenize(q['text'])
-            label = q['category']
-            # label = q['page']
+        questions = json.load(json_data)["questions"][:limit]
+        for question in questions:
+            tokenized_text = nltk.word_tokenize(question['text'])
+            label = question['category']
             if label:
-                data.append((q_text, label))
+                data.append(Example(tokenized_text, label))
     return data
 
 
-# You don't need to change this funtion
-def load_words(exs):
-    """
-    vocabuary building
-    Keyword arguments:
-    exs: list of input questions-type pairs
-    """
+@logger('creating class labels')
+def class_labels(examples: List[Example]) -> Tuple[Dict[str, int], Dict[int, str]]:
+    classes = [example.label for example in examples]
+    index2class = dict(enumerate(classes))
+    class2index = {v: k for k, v in index2class.items()}
+    return class2index, index2class
 
-    words = set()
-    word2ind = {kPAD: 0, kUNK: 1}
-    ind2word = {0: kPAD, 1: kUNK}
-    for q_text, _ in exs:
-        for w in q_text:
-            words.add(w)
+
+@logger('loading words')
+def load_words(examples: List[Example]) -> Tuple[List[str], Dict[str, int], Dict[int, str]]:
+    words = {kPAD, kUNK}
+    for tokenized_text, _ in examples:
+        words = words.union(set(tokenized_text))
     words = sorted(words)
-    for w in words:
-        idx = len(word2ind)
-        word2ind[w] = idx
-        ind2word[idx] = w
-    words = [kPAD, kUNK] + words
-    return words, word2ind, ind2word
+
+    index2word = dict(enumerate(words))
+    word2index = {v: k for k, v in index2word.items()}
+
+    return words, word2index, index2word
 
 
 class QuestionDataset(Dataset):
-    """
-    Pytorch data class for questions
-    """
+    def __init__(self,
+                 examples: List[Example],
+                 word2index: Dict[str, int],
+                 num_classes: int,
+                 class2index: Optional[Dict[str, int]] = None):
 
-    ###You don't need to change this funtion
-    def __init__(self, examples, word2ind, num_classes, class2ind=None):
-        self.questions = []
+        self.tokenized_questions = []
         self.labels = []
 
-        for qq, ll in examples:
-            self.questions.append(qq)
-            self.labels.append(ll)
+        tokenized_questions, labels = zip(*examples)
+        self.tokenized_questions = list(tokenized_questions)
+        self.labels = list(labels)
 
-        if type(self.labels[0]) == str:
-            for i in range(len(self.labels)):
-                try:
-                    self.labels[i] = class2ind[self.labels[i]]
-                except:
-                    self.labels[i] = num_classes
-        self.word2ind = word2ind
+        new_labels = []
+        for label in self.labels:
+            new_label = class2index[label] if label in class2index else num_classes
+            new_labels.append(new_label)
+        self.labels = new_labels
 
-    ###You don't need to change this funtion
-    def __getitem__(self, index):
-        return self.vectorize(self.questions[index], self.word2ind), \
-               self.labels[index]
+        self.word2index = word2index
 
-    ###You don't need to change this funtion
+    def __getitem__(self, index) -> Tuple[List[int], int]:
+        return self.vectorize(self.tokenized_questions[index]), self.labels[index]
+
     def __len__(self):
-        return len(self.questions)
+        return len(self.tokenized_questions)
 
-    @staticmethod
-    def vectorize(ex, word2ind):
-        """
-        vectorize a single example based on the word2ind dict.
-        Keyword arguments:
-        exs: list of input questions-type pairs
-        ex: tokenized question sentence (list)
-        label: type of question sentence
-        Output:  vectorized sentence(python list) and label(int)
-        e.g. ['text', 'test', 'is', 'fun'] -> [0, 2, 3, 4]
-        """
+    def vectorize(self, tokenized_text: List[str]) -> List[int]:
+        return [self.word2index[word] if word in self.word2index else self.word2index[kUNK]
+                for word in tokenized_text]
 
-        #### modify the code to vectorize the question text
-        #### You should consider the out of vocab(OOV) cases
-        #### question_text is already tokenized
-        ####Your code here
-
-        return [word2ind[word] if word in word2ind else word2ind[kUNK] for word in ex]
-
-
-###You don't need to change this funtion
 
 def batchify(batch):
     """
@@ -310,30 +275,24 @@ if __name__ == "__main__":
     parser.add_argument('--checkpoint', type=int, default=50)
 
     args = parser.parse_args()
-    #### check if using gpu is available
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     device = torch.device("cuda" if args.cuda else "cpu")
 
-    ### Load data
-    train_exs = load_data(args.train_file, args.limit)
-    dev_exs = load_data(args.dev_file, -1)
-    test_exs = load_data(args.test_file, -1)
+    training_examples = load_data(args.train_file, args.limit)
+    dev_examples = load_data(args.dev_file)
+    test_examples = load_data(args.test_file)
 
-    ### Create vocab
-    voc, word2ind, ind2word = load_words(train_exs)
+    voc, word2index, index2word = load_words(training_examples)
 
-    # get num_classes from training + dev examples - this can then also be used as int value for those test class labels not seen in training+dev.
-    num_classes = len(list(set([ex[1] for ex in train_exs + dev_exs])))
+    class2index, index2class = class_labels(training_examples + dev_examples)
+    num_classes = len(class2index)
 
-    print(num_classes)
-
-    # get class to int mapping
-    class2ind, ind2class = class_labels(train_exs + dev_exs)
+    print(f'Number of classes in dataset: {num_classes}')
+    print()
 
     if args.test:
         model = torch.load(args.load_model)
-        #### Load batchifed dataset
-        test_dataset = QuestionDataset(test_exs, word2ind, num_classes, class2ind)
+        test_dataset = QuestionDataset(test_examples, word2index, num_classes, class2index)
         test_sampler = torch.utils.data.sampler.SequentialSampler(test_dataset)
         test_loader = torch.utils.data.DataLoader(test_dataset,
                                                   batch_size=args.batch_size,
@@ -349,10 +308,10 @@ if __name__ == "__main__":
             model.to(device)
         print(model)
         #### Load batchifed dataset
-        train_dataset = QuestionDataset(train_exs, word2ind, num_classes, class2ind)
+        train_dataset = QuestionDataset(training_examples, word2index, num_classes, class2index)
         train_sampler = torch.utils.data.sampler.RandomSampler(train_dataset)
 
-        dev_dataset = QuestionDataset(dev_exs, word2ind, num_classes, class2ind)
+        dev_dataset = QuestionDataset(dev_examples, word2index, num_classes, class2index)
         dev_sampler = torch.utils.data.sampler.SequentialSampler(dev_dataset)
         dev_loader = torch.utils.data.DataLoader(dev_dataset, batch_size=args.batch_size,
                                                  sampler=dev_sampler, num_workers=0,
@@ -366,7 +325,7 @@ if __name__ == "__main__":
             accuracy = train(args, model, train_loader, dev_loader, accuracy, device)
         print('start testing:\n')
 
-        test_dataset = QuestionDataset(test_exs, word2ind, num_classes, class2ind)
+        test_dataset = QuestionDataset(test_examples, word2index, num_classes, class2index)
         test_sampler = torch.utils.data.sampler.SequentialSampler(test_dataset)
         test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size,
                                                   sampler=test_sampler, num_workers=0,
