@@ -175,17 +175,17 @@ def evaluate(data_loader: torch.utils.data.DataLoader,
 	error = 0
 	for i, batch in enumerate(data_loader):
 		question_text = batch['text'].to(device)
-		question_len = batch['len']
-		labels = batch['labels']
+		question_len = batch['len'].to(device)
+		labels = batch['labels'].to(device)
 
 		logits = model(question_text, question_len)
 
 		top_n, top_i = logits.topk(1)
 		num_examples += question_text.size(0)
-		error += torch.nonzero(top_i.squeeze() - torch.LongTensor(labels)).size(
-			0)
+		error += torch.nonzero(top_i.squeeze() - labels).size(0)
 
 	accuracy = 1 - error / num_examples
+	print(accuracy)
 	return accuracy
 
 
@@ -198,14 +198,14 @@ def train(args: argparse.Namespace,
 	model.train()
 	optimizer = torch.optim.Adamax(model.parameters())
 	criterion = nn.CrossEntropyLoss()
-	print_loss_total = 0
-	epoch_loss_total = 0
-	start = time.time()
+	# print_loss_total = 0
+	# epoch_loss_total = 0
+	# start = time.time()
 
 	for i, batch in enumerate(train_data_loader):
 		question_text = batch['text'].to(device)
-		question_len = batch['len']
-		labels = batch['labels']
+		question_len = batch['len'].to(device)
+		labels = batch['labels'].to(device)
 
 		optimizer.zero_grad()
 		result = model(question_text, question_len)
@@ -214,15 +214,15 @@ def train(args: argparse.Namespace,
 		optimizer.step()
 
 		clip_grad_norm_(model.parameters(), args.grad_clipping)
-		print_loss_total += loss.data.numpy()
-		epoch_loss_total += loss.data.numpy()
+		# print_loss_total += loss.data.numpy()
+		# epoch_loss_total += loss.data.numpy()
 
 		if i % args.checkpoint == 0 and i > 0:
-			print_loss_avg = print_loss_total / args.checkpoint
+			# print_loss_avg = print_loss_total / args.checkpoint
 
-			print(
-				f'number of steps: {i}, loss: {print_loss_avg} time: {time.time() - start}')
-			print_loss_total = 0
+			# print(
+			# 	f'number of steps: {i}, loss: {print_loss_avg} time: {time.time() - start}')
+			# print_loss_total = 0
 			curr_accuracy = evaluate(dev_data_loader, model, device)
 			if curr_accuracy > accuracy:
 				accuracy = curr_accuracy
@@ -233,7 +233,7 @@ def train(args: argparse.Namespace,
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Question Type')
-	parser.add_argument('--no-cuda', action='store_true', default=True)
+	parser.add_argument('--no-cuda', action='store_true', default=False)
 	parser.add_argument('--train-file', type=str, default='../../data/qanta.train.json')
 	parser.add_argument('--dev-file', type=str, default='../../data/qanta.dev.json')
 	parser.add_argument('--test-file', type=str, default='../../data/qanta.test.json')
