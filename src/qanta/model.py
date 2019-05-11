@@ -193,76 +193,48 @@ def train(args, model, train_data_loader, dev_data_loader, accuracy, device):
     return accuracy
 
 
-class DanModel(nn.Module):
-    """High level model that handles intializing the underlying network
-    architecture, saving, updating examples, and predicting examples.
-    """
-
-    #### You don't need to change the parameters for the model for passing tests, might need to tinker to improve performance/handle
-    #### pretrained word embeddings/for your project code.
-
-    def __init__(self, n_classes, vocab_size, emb_dim=50,
-                 n_hidden_units=50, nn_dropout=.5):
-        super(DanModel, self).__init__()
+class Model(nn.Module):
+    def __init__(self,
+                 n_classes,
+                 vocab_size,
+                 embedded_dimension=50,
+                 n_hidden=50,
+                 dropout_rate=.5):
+        super(Model, self).__init__()
         self.n_classes = n_classes
         self.vocab_size = vocab_size
-        self.emb_dim = emb_dim
-        self.n_hidden_units = n_hidden_units
-        self.nn_dropout = nn_dropout
-        self.embeddings = nn.Embedding(self.vocab_size, self.emb_dim,
+        self.embedded_dimension = embedded_dimension
+        self.n_hidden = n_hidden
+        self.dropout_rate = dropout_rate
+        self.embeddings = nn.Embedding(self.vocab_size,
+                                       self.embedded_dimension,
                                        padding_idx=0)
 
-        self.linear1 = nn.Linear(emb_dim, n_hidden_units)
-        self.linear2 = nn.Linear(n_hidden_units, n_classes)
+        self.layer1 = nn.Linear(embedded_dimension, n_hidden)
+        self.layer2 = nn.Linear(n_hidden, n_classes)
 
-        # Create the actual prediction framework for the DAN classifier.
-
-        # You'll need combine the two linear layers together, probably
-        # with the Sequential function.  The first linear layer takes
-        # word embeddings into the representation space, and the
-        # second linear layer makes the final prediction.  Other
-        # layers / functions to consider are Dropout, ReLU.
-        # For test cases, the network we consider is - linear1 -> ReLU() -> Dropout(0.5) -> linear2
-
-        #### Your code here
         self.classifier = nn.Sequential(
-            self.linear1,
+            self.layer1,
             nn.ReLU(),
-            nn.Dropout(p=nn_dropout, inplace=False),
-            self.linear2,
+            nn.Dropout(p=dropout_rate, inplace=False),
+            self.layer2,
         )
         self._softmax = nn.Softmax(dim=1)
 
     def forward(self, input_text, text_len, is_prob=False):
-        """
-        Model forward pass, returns the logits of the predictions.
-
-        Keyword arguments:
-        input_text : vectorized question text
-        text_len : batch * 1, text length for each question
-        is_prob: if True, output the softmax of last layer
-        """
 
         logits = torch.LongTensor([0.0] * self.n_classes)
 
-        # Complete the forward funtion.  First look up the word embeddings.
         embedding = self.embeddings(input_text)
+        average_embedding = embedding.sum(1) / text_len.view(embedding.size(0), -1)
 
-        # Then average them
-        average_embedding = embedding.sum(1) / text_len.view(embedding.size(0),
-                                                             -1)
-
-        # Before feeding them through the network
-
-        logits = self.classifier(average_embedding)
         if is_prob:
             logits = self._softmax(logits)
+        else:
+            logits = self.classifier(average_embedding)
 
         return logits
 
-
-# You basically do not need to modify the below code
-# But you may need to add funtions to support error analysis
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Question Type')
@@ -310,7 +282,7 @@ if __name__ == "__main__":
         if args.resume:
             model = torch.load(args.load_model)
         else:
-            model = DanModel(num_classes, len(voc))
+            model = Model(num_classes, len(voc))
             model.to(device)
         print(model)
         #### Load batchifed dataset
