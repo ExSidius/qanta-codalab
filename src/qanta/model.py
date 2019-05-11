@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch
 
 
-from typing import NamedTuple, List, Dict, Tuple, Optional
+from typing import NamedTuple, List, Dict, Tuple, Optional, Union
 import argparse
 import json
 import time
@@ -92,28 +92,27 @@ class QuestionDataset(Dataset):
                 for word in tokenized_text]
 
 
-def batchify(batch):
+def batchify(batch: List[Tuple[List[int], int]]) -> Dict[str, Union[torch.LongTensor, torch.FloatTensor]]:
     """
     Gather a batch of individual examples into one batch,
-    which includes the question text, question length and labels
-    Keyword arguments:
-    batch: list of outputs from vectorize function
+    which includes the question text, question length and labels.
     """
 
-    question_len = list()
-    label_list = list()
-    for ex in batch:
-        question_len.append(len(ex[0]))
-        label_list.append(ex[1])
+    questions, labels = zip(*batch)
+    questions = list(questions)
+    question_lens = [len(q) for q in questions]
+    labels = list(labels)
 
-    target_labels = torch.LongTensor(label_list)
-    x1 = torch.LongTensor(len(question_len), max(question_len)).zero_()
-    for i in range(len(question_len)):
-        question_text = batch[i][0]
-        vec = torch.LongTensor(question_text)
-        x1[i, :len(question_text)].copy_(vec)
-    q_batch = {'text': x1, 'len': torch.FloatTensor(question_len), 'labels': target_labels}
-    return q_batch
+    target_labels = torch.LongTensor(labels)
+    x1 = torch.LongTensor(len(questions), max(question_lens)).zero_()
+    for i, (question, q_len) in enumerate(zip(questions, question_lens)):
+        x1[i, :q_len].copy_(torch.LongTensor(question))
+
+    return {
+        'text': x1,
+        'len': torch.FloatTensor(question_lens),
+        'labels': target_labels,
+    }
 
 
 def evaluate(data_loader, model, device):
@@ -197,20 +196,24 @@ class Model(nn.Module):
     def __init__(self,
                  n_classes,
                  vocab_size,
-                 embedded_dimension=50,
+                 embedding_dimension=50,
                  n_hidden=50,
                  dropout_rate=.5):
         super(Model, self).__init__()
+
         self.n_classes = n_classes
         self.vocab_size = vocab_size
-        self.embedded_dimension = embedded_dimension
+
         self.n_hidden = n_hidden
-        self.dropout_rate = dropout_rate
+
+        self.embedding_dimension = embedding_dimension
         self.embeddings = nn.Embedding(self.vocab_size,
-                                       self.embedded_dimension,
+                                       self.embedding_dimension,
                                        padding_idx=0)
 
-        self.layer1 = nn.Linear(embedded_dimension, n_hidden)
+        self.dropout_rate = dropout_rate
+
+        self.layer1 = nn.Linear(embedding_dimension, n_hidden)
         self.layer2 = nn.Linear(n_hidden, n_classes)
 
         self.classifier = nn.Sequential(
@@ -284,33 +287,35 @@ if __name__ == "__main__":
         else:
             model = Model(num_classes, len(voc))
             model.to(device)
+
         print(model)
-        #### Load batchifed dataset
+
         train_dataset = QuestionDataset(training_examples, word2index, num_classes, class2index)
         train_sampler = torch.utils.data.sampler.RandomSampler(train_dataset)
 
         dev_dataset = QuestionDataset(dev_examples, word2index, num_classes, class2index)
         dev_sampler = torch.utils.data.sampler.SequentialSampler(dev_dataset)
-        dev_loader = torch.utils.data.DataLoader(dev_dataset, batch_size=args.batch_size,
-                                                 sampler=dev_sampler, num_workers=0,
+        dev_loader = torch.utils.data.DataLoader(dev_dataset,
+                                                 batch_size=args.batch_size,
+                                                 sampler=dev_sampler,
+                                                 num_workers=0,
                                                  collate_fn=batchify)
         accuracy = 0
         for epoch in range(args.num_epochs):
-            print('start epoch %d' % epoch)
+            print(f'Start Epoch {epoch}')
             train_loader = torch.utils.data.DataLoader(train_dataset,
                                                        batch_size=args.batch_size,
                                                        sampler=train_sampler,
                                                        num_workers=0,
                                                        collate_fn=batchify)
             accuracy = train(args, model, train_loader, dev_loader, accuracy, device)
-        print('start testing:\n')
+        print('Start Testing:\n')
 
         test_dataset = QuestionDataset(test_examples, word2index, num_classes, class2index)
         test_sampler = torch.utils.data.sampler.SequentialSampler(test_dataset)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size,
-                                                  sampler=test_sampler, num_workers=0,
+        test_loader = torch.utils.data.DataLoader(test_dataset,
+                                                  batch_size=args.batch_size,
+                                                  sampler=test_sampler,
+                                                  num_workers=0,
                                                   collate_fn=batchify)
         evaluate(test_loader, model, device)
-
-
-

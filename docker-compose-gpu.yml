@@ -22,7 +22,7 @@ services:
       "--norun-web",
       "--char_step_size", "60",
 #      "--retrieve_paragraphs", "False",
-      "data/qanta.dev.2018.04.18.json"
+      "data/qanta.dev.json"
     ]
     depends_on:
       - "qb"
