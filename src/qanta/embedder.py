@@ -10,8 +10,8 @@ TORCH_EMBEDDER_PATH = join(dirname(dirname(dirname(abspath(__file__)))),
 def generate_embeddings():
 	assert exists(EMBEDDING_PATH)
 
+	print('Starting to load pre-trained embeddings')
 	embeddings = {}
-	count = 0
 	with open(EMBEDDING_PATH, 'r') as file:
 		while True:
 			line = file.readline()
@@ -24,7 +24,7 @@ def generate_embeddings():
 			embedding = [float(emb.strip()) for emb in line[1:]]
 			if len(embedding) == EMBEDDING_LENGTH:
 				embeddings[word] = embedding
-
+	print('Done loading pre-trained embeddings')
 	return embeddings
 
 

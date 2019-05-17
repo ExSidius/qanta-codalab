@@ -274,7 +274,7 @@ if __name__ == "__main__":
 
 	embedder = None
 	if args.use_pretrained_embeddings:
-		embedder = Embedder(index2word).get_embedder()
+		embedder = Embedder(index2word).get_embedding()
 
 	print(f'Number of classes in dataset: {num_classes}')
 	print()
