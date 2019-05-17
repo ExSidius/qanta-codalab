@@ -1,5 +1,6 @@
 import click
 from flask import Flask, jsonify, request
+from .guesser_model import Model
 
 from .guesser import guesser
 from .util import download

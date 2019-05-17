@@ -1,14 +1,18 @@
 import torch
 import pickle
 import nltk
-from guesser_model import Model
+from os.path import dirname, abspath, join, exists
+from .guesser_model import Model
 
-MODEL_PATH = 'dan_debias.pt'
-IND_LABEL_PATH = 'word_maps.pkl'
+MODEL_PATH = join(dirname(abspath(__file__)), 'dan_debias.pt')
+IND_LABEL_PATH = join(dirname(abspath(__file__)), 'word_maps.pkl')
 kUNK = '<unk>'
 kPAD = '<pad>'
 # arbitrary, temp buzzer
 BUZZ_THRESHOLD = 0.01
+
+assert exists(MODEL_PATH)
+assert exists(IND_LABEL_PATH)
 
 # how to load model & data so it's initialized once?
 model = torch.load(MODEL_PATH)
@@ -26,7 +30,7 @@ class Guesser:
 	def guess_and_buzz(self, question):
 		tokens = nltk.word_tokenize(question)
 		vectorized = vectorize(tokens)
-		logits = model(torch.FloatTensor([vectorized]))
+		logits = model(torch.FloatTensor([vectorized]), torch.FloatTensor([len(vectorized)]))
 		top_n, top_i = logits.topk(5)
 		buzz = False
 		if top_n[0] > BUZZ_THRESHOLD:

@@ -9,12 +9,11 @@ import json
 import nltk
 import pickle
 
-from helpers import logger
-from embedder import EMBEDDING_LENGTH, Embedder
+from .helpers import logger
+from .embedder import EMBEDDING_LENGTH, Embedder
 
 kUNK = '<unk>'
 kPAD = '<pad>'
-
 
 class Example(NamedTuple):
 	tokenized_text: List[str]
