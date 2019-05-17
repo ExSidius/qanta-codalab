@@ -9,11 +9,15 @@ import json
 import nltk
 import pickle
 
-from .helpers import logger
-from .embedder import EMBEDDING_LENGTH, Embedder
+from helpers import logger
+from embedder import EMBEDDING_LENGTH, Embedder
 
 kUNK = '<unk>'
 kPAD = '<pad>'
+TRAIN_DATASET = 'train_dataset.pkl'
+DEV_DATASET = 'dev_dataset.pkl'
+TEST_DATASET = 'test_dataset.pkl'
+WORD_MAPS = 'word_maps.pkl'
 
 class Example(NamedTuple):
 	tokenized_text: List[str]
@@ -200,7 +204,10 @@ def train(args: argparse.Namespace,
 		  accuracy: float,
 		  device: torch.device) -> float:
 	model.train()
-	optimizer = torch.optim.Adamax(model.parameters())
+	if args.optim == 'adamax':
+		optimizer = torch.optim.Adamax(model.parameters())
+	elif args.optim == 'rprop':
+		optimizer = torch.optim.Rprop(model.parameters(), lr=0.05)
 	criterion = nn.CrossEntropyLoss()
 	# print_loss_total = 0
 	# epoch_loss_total = 0
@@ -252,18 +259,37 @@ if __name__ == "__main__":
 	parser.add_argument('--checkpoint', type=int, default=50)
 	parser.add_argument('--use-pretrained-embeddings', action='store_true', default=False)
 	parser.add_argument('--store-word-maps', action='store_true', default=False)
+	parser.add_argument('--optim', type=str, default='adamax')
+	parser.add_argument('--save-qdataset', action='store_true', default=False)
+	parser.add_argument('--load-qdataset', action='store_true', default=False)
 
 	args = parser.parse_args()
 	args.cuda = not args.no_cuda and torch.cuda.is_available()
 	device = torch.device("cuda" if args.cuda else "cpu")
 
-	training_examples = load_data(args.train_file, args.limit)
-	dev_examples = load_data(args.dev_file)
-	test_examples = load_data(args.test_file)
+	assert not (args.save_qdataset and args.load_qdataset)
 
-	voc, word2index, index2word = load_words(training_examples + dev_examples)
+	if args.load_qdataset:
+		print('Loading saved datasets')
+		train_dataset = pickle.load(open(TRAIN_DATASET, 'rb'))
+		dev_dataset = pickle.load(open(DEV_DATASET, 'rb'))
+		test_dataset = pickle.load(open(TEST_DATASET, 'rb'))
+		word_maps = pickle.load(open(WORD_MAPS, 'rb'))
 
-	class2index, index2class = class_labels(training_examples + dev_examples)
+		voc = word_maps['voc']
+		word2index = word_maps['word2index']
+		index2word = word_maps['index2word']
+		class2index = word_maps['class2index']
+		index2class = word_maps['index2class']
+	else:
+		training_examples = load_data(args.train_file, args.limit)
+		dev_examples = load_data(args.dev_file)
+		test_examples = load_data(args.test_file)
+
+		voc, word2index, index2word = load_words(training_examples + dev_examples)
+
+		class2index, index2class = class_labels(training_examples + dev_examples)
+
 	num_classes = len(class2index)
 
 	if args.store_word_maps:
@@ -280,8 +306,12 @@ if __name__ == "__main__":
 
 	if args.test:
 		model = torch.load(args.load_model)
-		test_dataset = QuestionDataset(test_examples, word2index, num_classes,
+		if not args.load_qdataset:
+			test_dataset = QuestionDataset(test_examples, word2index, num_classes,
 									   class2index)
+			if args.save_qdataset:
+				print('Saving test dataset')
+				pickle.dump(test_dataset, open(TEST_DATASET, 'wb'))
 		test_sampler = torch.utils.data.sampler.SequentialSampler(test_dataset)
 		test_loader = torch.utils.data.DataLoader(test_dataset,
 												  batch_size=args.batch_size,
@@ -292,18 +322,24 @@ if __name__ == "__main__":
 	else:
 		if args.resume:
 			model = torch.load(args.load_model)
+			model.to(device)
 		else:
 			model = Model(num_classes, len(voc), embedder=embedder)
 			model.to(device)
 
 		print(model)
 
-		train_dataset = QuestionDataset(training_examples, word2index,
+		if not args.load_qdataset:
+			train_dataset = QuestionDataset(training_examples, word2index,
 										num_classes, class2index)
-		train_sampler = torch.utils.data.sampler.RandomSampler(train_dataset)
+			dev_dataset = QuestionDataset(dev_examples, word2index, num_classes,
+			                              class2index)
+			if args.save_qdataset:
+				print('Saving train & dev datasets')
+				pickle.dump(train_dataset, open(TRAIN_DATASET, 'wb'))
+				pickle.dump(dev_dataset, open(DEV_DATASET, 'wb'))
 
-		dev_dataset = QuestionDataset(dev_examples, word2index, num_classes,
-									  class2index)
+		train_sampler = torch.utils.data.sampler.RandomSampler(train_dataset)
 		dev_sampler = torch.utils.data.sampler.SequentialSampler(dev_dataset)
 		dev_loader = torch.utils.data.DataLoader(dev_dataset,
 												 batch_size=args.batch_size,
