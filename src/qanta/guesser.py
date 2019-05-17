@@ -18,7 +18,7 @@ word2index = ind_and_labels['word2index']
 index2class = ind_and_labels['index2class']
 
 
-def vectorize(self, tokenized_text):
+def vectorize(tokenized_text):
 	return [word2index[word] if word in word2index else word2index[kUNK] for word in tokenized_text]
 
 

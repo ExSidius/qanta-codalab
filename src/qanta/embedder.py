@@ -7,6 +7,7 @@ EMBEDDING_LENGTH = 300
 TORCH_EMBEDDER_PATH = join(dirname(dirname(dirname(abspath(__file__)))),
 					  'data', 'torch_embedder.pt')
 
+
 def generate_embeddings():
 	assert exists(EMBEDDING_PATH)
 
