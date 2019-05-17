@@ -11,25 +11,28 @@ kPAD = '<pad>'
 # arbitrary, temp buzzer
 BUZZ_THRESHOLD = 0.01
 
-assert exists(MODEL_PATH)
-assert exists(IND_LABEL_PATH)
+# assert exists(MODEL_PATH)
+# assert exists(IND_LABEL_PATH)
 
 # how to load model & data so it's initialized once?
-model = torch.load(MODEL_PATH)
-with open(IND_LABEL_PATH, 'rb') as f:
-	ind_and_labels = pickle.load(f)
-word2index = ind_and_labels['word2index']
-index2class = ind_and_labels['index2class']
 
 
-def vectorize(tokenized_text):
+
+def vectorize(word2index, tokenized_text):
 	return [word2index[word] if word in word2index else word2index[kUNK] for word in tokenized_text]
 
 
 class Guesser:
+	def __init__(self):
+		self.model = torch.load(MODEL_PATH)
+		with open(IND_LABEL_PATH, 'rb') as f:
+			self.ind_and_labels = pickle.load(f)
+		self.word2index = ind_and_labels['word2index']
+		self.index2class = ind_and_labels['index2class']
+
 	def guess_and_buzz(self, question):
 		tokens = nltk.word_tokenize(question)
-		vectorized = vectorize(tokens)
+		vectorized = vectorize(self.word2index, tokens)
 		logits = model(torch.FloatTensor([vectorized]), torch.FloatTensor([len(vectorized)]))
 		top_n, top_i = logits.topk(5)
 		buzz = False
@@ -44,4 +47,4 @@ class Guesser:
 		pass
 
 
-guesser = Guesser()
+# guesser = Guesser()

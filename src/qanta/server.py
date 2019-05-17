@@ -2,12 +2,14 @@ import click
 from flask import Flask, jsonify, request
 from .guesser_model import Model
 
-from .guesser import guesser
+from .guesser import Guesser
 from .util import download
 
 
 def create_app(enable_batch=True):
     app = Flask(__name__)
+
+    guesser = Guesser()
 
     @app.route('/api/1.0/quizbowl/act', methods=['POST'])
     def act():
