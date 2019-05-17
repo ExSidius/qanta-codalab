@@ -35,7 +35,8 @@ class Embedder:
 	We should consider alternatives.
 	"""
 	def __init__(self, index2word):
-		self.embeddings = generate_embeddings()
+		if not exists(TORCH_EMBEDDER_PATH):
+			self.embeddings = generate_embeddings()
 		self.index2word = index2word
 
 	def get_embedding(self):
