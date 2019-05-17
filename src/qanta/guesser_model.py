@@ -158,8 +158,6 @@ class Model(nn.Module):
 
 	def forward(self, input_text: torch.Tensor, text_len: torch.Tensor, is_prob=False):
 
-		breakpoint()
-
 		logits = torch.LongTensor([0.0] * self.n_classes)
 
 		embedding = self.embeddings(input_text)
@@ -254,7 +252,7 @@ if __name__ == "__main__":
 	parser.add_argument("--limit", help="Number of training documents", type=int, default=-1, required=False)
 	parser.add_argument('--checkpoint', type=int, default=50)
 	parser.add_argument('--use-pretrained-embeddings', action='store_true', default=False)
-	parser.add_argument('--store-word-maps', actions='store_true', default=False)
+	parser.add_argument('--store-word-maps', action='store_true', default=False)
 
 	args = parser.parse_args()
 	args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -276,7 +274,7 @@ if __name__ == "__main__":
 	if args.store_word_maps:
 		with open('word_maps.pkl', 'wb') as f:
 			pickle.dump({'voc': voc, 'word2index': word2index, 'index2word': index2word,
-			             'class2index': class2index, 'index2class': index2class})
+			             'class2index': class2index, 'index2class': index2class}, f)
 
 	print(f'Number of classes in dataset: {num_classes}')
 	print()

@@ -157,8 +157,6 @@ class Model(nn.Module):
 
 	def forward(self, input_text: torch.Tensor, text_len: torch.Tensor, is_prob=False):
 
-		breakpoint()
-
 		logits = torch.LongTensor([0.0] * self.n_classes)
 
 		embedding = self.embeddings(input_text)
