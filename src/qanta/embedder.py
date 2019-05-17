@@ -61,3 +61,7 @@ class Embedder:
 	# 		return self.embeddings[word]
 	#
 	# 	return [0 for _ in range(EMBEDDING_LENGTH)]
+
+
+if __name__ == '__main__':
+	pass

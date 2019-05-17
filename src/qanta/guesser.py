@@ -47,4 +47,8 @@ class Guesser:
 		pass
 
 
-# guesser = Guesser()
+guesser = Guesser()
+
+
+if __name__ == '__main__':
+	pass
