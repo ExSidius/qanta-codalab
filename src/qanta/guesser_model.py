@@ -267,14 +267,14 @@ if __name__ == "__main__":
 	class2index, index2class = class_labels(training_examples + dev_examples)
 	num_classes = len(class2index)
 
-	embedder = None
-	if args.use_pretrained_embeddings:
-		embedder = Embedder(index2word)
-
 	if args.store_word_maps:
 		with open('word_maps.pkl', 'wb') as f:
 			pickle.dump({'voc': voc, 'word2index': word2index, 'index2word': index2word,
 			             'class2index': class2index, 'index2class': index2class}, f)
+
+	embedder = None
+	if args.use_pretrained_embeddings:
+		embedder = Embedder(index2word).get_embedder()
 
 	print(f'Number of classes in dataset: {num_classes}')
 	print()
