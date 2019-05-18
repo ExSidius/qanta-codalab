@@ -208,6 +208,7 @@ def train(args: argparse.Namespace,
 		optimizer = torch.optim.Adamax(model.parameters(), lr=args.learning_rate)
 	elif args.optim == 'rprop':
 		optimizer = torch.optim.Rprop(model.parameters(), lr=args.learning_rate)
+	optimizer = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
 	criterion = nn.CrossEntropyLoss()
 	# print_loss_total = 0
 	# epoch_loss_total = 0
@@ -370,4 +371,3 @@ if __name__ == "__main__":
 												  num_workers=0,
 												  collate_fn=batchify)
 		evaluate(test_loader, model, device)
-		
