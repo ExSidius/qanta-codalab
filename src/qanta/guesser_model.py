@@ -360,7 +360,8 @@ if __name__ == "__main__":
 							 device)
 		print('Start Testing:\n')
 
-		test_dataset = QuestionDataset(test_examples, word2index, num_classes,
+		if not args.load_qdataset:
+			test_dataset = QuestionDataset(test_examples, word2index, num_classes,
 									   class2index)
 		test_sampler = torch.utils.data.sampler.SequentialSampler(test_dataset)
 		test_loader = torch.utils.data.DataLoader(test_dataset,
@@ -369,3 +370,4 @@ if __name__ == "__main__":
 												  num_workers=0,
 												  collate_fn=batchify)
 		evaluate(test_loader, model, device)
+		
