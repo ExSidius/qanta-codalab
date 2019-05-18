@@ -202,13 +202,13 @@ def train(args: argparse.Namespace,
 		  train_data_loader: torch.utils.data.DataLoader,
 		  dev_data_loader: torch.utils.data.DataLoader,
 		  accuracy: float,
-		  device: torch.device) -> float:
+		  device: torch.device,
+          learning_rate: float) -> float:
 	model.train()
 	if args.optim == 'adamax':
-		optimizer = torch.optim.Adamax(model.parameters(), lr=args.learning_rate)
+		optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 	elif args.optim == 'rprop':
-		optimizer = torch.optim.Rprop(model.parameters(), lr=args.learning_rate)
-	optimizer = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.1)
+		optimizer = torch.optim.Rprop(model.parameters(), lr=learning_rate)
 	criterion = nn.CrossEntropyLoss()
 	# print_loss_total = 0
 	# epoch_loss_total = 0
@@ -352,13 +352,14 @@ if __name__ == "__main__":
 		accuracy = 0
 		for epoch in range(args.num_epochs):
 			print(f'Start Epoch {epoch}')
+			learning_rate = args.learning_rate * ((0.5) ** (epoch//100))
 			train_loader = torch.utils.data.DataLoader(train_dataset,
 													   batch_size=args.batch_size,
 													   sampler=train_sampler,
 													   num_workers=0,
 													   collate_fn=batchify)
 			accuracy = train(args, model, train_loader, dev_loader, accuracy,
-							 device)
+							 device, learning_rate)
 		print('Start Testing:\n')
 
 		if not args.load_qdataset:
