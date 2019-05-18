@@ -205,9 +205,9 @@ def train(args: argparse.Namespace,
 		  device: torch.device) -> float:
 	model.train()
 	if args.optim == 'adamax':
-		optimizer = torch.optim.Adamax(model.parameters(), lr=float(args.learning_rate))
+		optimizer = torch.optim.Adamax(model.parameters(), lr=args.learning_rate)
 	elif args.optim == 'rprop':
-		optimizer = torch.optim.Rprop(model.parameters(), lr=float(args.learning_rate))
+		optimizer = torch.optim.Rprop(model.parameters(), lr=args.learning_rate)
 	criterion = nn.CrossEntropyLoss()
 	# print_loss_total = 0
 	# epoch_loss_total = 0
@@ -263,7 +263,7 @@ if __name__ == "__main__":
 	parser.add_argument('--optim', type=str, default='adamax')
 	parser.add_argument('--save-qdataset', action='store_true', default=False)
 	parser.add_argument('--load-qdataset', action='store_true', default=False)
-	parser.add_argument('--learning-rate', type=str, default='0.001')
+	parser.add_argument('--learning-rate', type=float, default='0.001')
 
 	args = parser.parse_args()
 	args.cuda = not args.no_cuda and torch.cuda.is_available()
