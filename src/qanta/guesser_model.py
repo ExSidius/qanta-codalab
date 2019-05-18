@@ -263,7 +263,7 @@ if __name__ == "__main__":
 	parser.add_argument('--optim', type=str, default='adamax')
 	parser.add_argument('--save-qdataset', action='store_true', default=False)
 	parser.add_argument('--load-qdataset', action='store_true', default=False)
-	parser.add_argument('--learning-rate', type=float, default='0.001')
+	parser.add_argument('--learning-rate', type=float, default=0.001)
 
 	args = parser.parse_args()
 	args.cuda = not args.no_cuda and torch.cuda.is_available()
