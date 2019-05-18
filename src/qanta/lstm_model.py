@@ -153,7 +153,7 @@ def accuracy_fn(logits, labels, num_classes):
 	labels = torch.index_select(labels, 0, indices)
 
 	top_n, top_i = logits.topk(1)
-	error = torch.nonzero(top_i.squeeze() - torch.LongTensor(labels)).size(0)
+	error = torch.nonzero(top_i.squeeze() - labels).size(0)
 
 	return error, num_examples
 
@@ -271,7 +271,6 @@ def train(args: argparse.Namespace,
 		dev_data_loader: pytorch build-in data loader output for dev examples
 		device: cpu or gpu
 	"""
-	model.train()
 	if args.optim == 'adamax':
 		optimizer = torch.optim.Adamax(model.parameters(), lr=learning_rate)
 	elif args.optim == 'rprop':
@@ -283,6 +282,7 @@ def train(args: argparse.Namespace,
 	best_train_acc, best_dev_acc = 0.0, 0.0
 
 	for i, batch in enumerate(train_data_loader):
+		model.train()
 		question_text = batch['text'].to(device)
 		question_len = batch['len'].to(device)
 		labels = batch['labels'].to(device)
@@ -296,20 +296,20 @@ def train(args: argparse.Namespace,
 		# use loss_fn defined above to calculate loss
 		loss = loss_fn(logits, labels, model.n_classes)
 
-		# use accuracy_fn defined above to calculate 'error' and number of examples ('num_examples') used to
-		# calculate accuracy below.
-		error, num_examples = accuracy_fn(logits, labels, model.n_classes)
-
 		# backprop
 		loss.backward()
 		optimizer.step()
 
-		accuracy = 1 - error / num_examples
 		clip_grad_norm_(model.parameters(), 5)
-		print_loss_total += loss.data.numpy()
-		epoch_loss_total += loss.data.numpy()
+		print_loss_total += loss.cpu().data.numpy()
+		epoch_loss_total += loss.cpu().data.numpy()
 
 		if i % args.checkpoint == 0 and i > 0:
+			# use accuracy_fn defined above to calculate 'error' and number of examples ('num_examples') used to
+			# calculate accuracy below.
+			error, num_examples = accuracy_fn(logits, labels, model.n_classes)
+			accuracy = 1 - error / num_examples
+
 			print_loss_avg = print_loss_total / args.checkpoint
 			dev_acc = evaluate(dev_data_loader, model, device)
 			print('number of steps: %d, train loss: %.5f, train acc: %.3f, dev acc: %.3f' % (i + 1, print_loss_avg,
@@ -348,7 +348,9 @@ if __name__ == "__main__":
 
 	args = parser.parse_args()
 	args.cuda = not args.no_cuda and torch.cuda.is_available()
+	print(args.cuda)
 	device = torch.device("cuda" if args.cuda else "cpu")
+	print(device)
 
 	assert not (args.save_qdataset and args.load_qdataset)
 
