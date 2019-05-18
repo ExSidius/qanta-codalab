@@ -2,8 +2,8 @@ import click
 from flask import Flask, jsonify, request
 from .guesser_model import Model
 
-from .guesser import Guesser
-from .util import download
+from qanta.guesser import Guesser
+from qanta.util import download
 
 
 def create_app(enable_batch=True):

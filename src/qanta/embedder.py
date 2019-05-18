@@ -2,7 +2,7 @@ from os.path import dirname, abspath, join, exists
 import torch
 
 EMBEDDING_PATH = join(dirname(dirname(dirname(abspath(__file__)))),
-					  'data', 'debiased_embeddings.txt')
+					  'data', 'embeddings.txt')
 EMBEDDING_LENGTH = 300
 TORCH_EMBEDDER_PATH = join(dirname(dirname(dirname(abspath(__file__)))),
 					  'data', 'torch_embedder.pt')
