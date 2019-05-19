@@ -334,7 +334,12 @@ if __name__ == "__main__":
 	print()
 
 	if args.test:
-		model = torch.load(args.load_model)
+		if args.no_cuda:
+			model = torch.load(args.load_model, map_location='cpu')
+		else:
+			model = torch.load(args.load_model)
+		model.to(device)
+		print(model)
 		if not args.load_qdataset:
 			test_dataset = QuestionDataset(test_examples, word2index, num_classes,
 									   class2index)
@@ -347,7 +352,10 @@ if __name__ == "__main__":
 		evaluate(test_loader, model, device)
 	else:
 		if args.resume:
-			model = torch.load(args.load_model)
+			if args.no_cuda:
+				model = torch.load(args.load_model, map_location='cpu')
+			else:
+				model = torch.load(args.load_model)
 			model.to(device)
 		else:
 			model = Model(num_classes, len(voc), embedder=embedder)
