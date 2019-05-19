@@ -142,11 +142,14 @@ class DanGuesser:
 	load: Can load a previously saved trained model from the location specified in GUESSER_MODEL_PATH.
 	'''
 
-	def __init__(self, model_path, vectorizer, index2class):
+	def __init__(self, model_path, word2index, index2class):
 		self.model = torch.load(model_path)
-		self.vectorizer = vectorizer
+		self.word2index = word2index
 		self.index2class = index2class
 
+	def vectorize(self, sentence):
+		tokens = nltk.word_tokenize(sentence)
+		return [self.word2index[token] for token in tokens]
 
 	def guess(self, questions: List[str], max_n_guesses=10) -> List[List[Tuple[str, float]]]:
 		'''
@@ -154,7 +157,7 @@ class DanGuesser:
 		'''
 		X = []
 		for question in questions:
-			X.append(self.vectorizer(question))
+			X.append(self.vectorize(question))
 		X = torch.LongTensor(X)
 		logits = self.model(X)
 		top_n, top_i = logits.topk(max_n_guesses)
@@ -597,14 +600,12 @@ if __name__ == "__main__":
 	parser.add_argument('--num_epochs', type=int, default=25, help='Number of Epochs for training the buzzer')
 	parser.add_argument('--guesser_train_limit', type=int, default=-1,
 	                    help='Limit the data used to train the Guesser (total is around 90,000)')
-	parser.add_argument('--buzzer_train_limit', type=int, default=5000,
+	parser.add_argument('--buzzer_train_limit', type=int, default=-1,
 	                    help='Limit the data used to train the Buzzer (total is around 16,000)')
-	parser.add_argument('--buzzer_dev_limit', type=int, default=500,
+	parser.add_argument('--buzzer_dev_limit', type=int, default=-1,
 	                    help='Limit the dev data used to evaluate the buzzer (total is 1161)')
-	parser.add_argument('--buzzer_test_limit', type=int, default=500,
+	parser.add_argument('--buzzer_test_limit', type=int, default=-1,
 	                    help='Limit the test data used to evaluate the buzzer (total is 1953)')
-	parser.add_argument('--guesser_saved_flag', type=bool, default=False,
-	                    help='flag indicating use of saved guesser model or training one')
 	parser.add_argument('--buzz_data_saved_flag', type=bool, default=False,
 	                    help='flag indicating using saved data files to train buzzer, or generating them')
 	parser.add_argument('--see_test_accuracy', type=bool, default=False,
@@ -612,13 +613,9 @@ if __name__ == "__main__":
 	parser.add_argument("--char_skip", type=int, default=50,
 	                    help='number of characters to skip after which buzzer should predict')
 	parser.add_argument('--checkpoint', type=int, default=50)
+	parser.add_argument('--word_map_path', type=str, default='word_maps.pkl')
 
 	args = parser.parse_args()
-
-	if args.guesser_train_limit < 0:
-		train_guess_questions = QuizBowlDataset(guesser=True, split='train').data()
-	else:
-		train_guess_questions = QuizBowlDataset(guesser=True, split='train').data()[:args.guesser_train_limit]
 
 	if args.buzzer_train_limit < 0:
 		train_buzz_questions = QuizBowlDataset(buzzer=True, split='train').data()
@@ -635,13 +632,12 @@ if __name__ == "__main__":
 	else:
 		test_buzz_questions = QuizBowlDataset(buzzer=True, split='test').data()[:args.buzzer_test_limit]
 
-	if args.guesser_saved_flag:
-		guesser_model = TfidfGuesser().load(args.guesser_model_path)
-	else:
-		guesser_model = get_trained_guesser_model(train_guess_questions)
-		guesser_model.save(args.guesser_model_path)
-		print(
-			'Guesser Model Saved! Use --guesser_saved_flag=True when you next run the code to load the trained guesser directly.')
+	with open(args.word_map_path, 'rb') as f:
+		word_maps = pickle.load(f)
+	word2index = word_maps['word2index']
+	index2class = word_maps['index2class']
+
+	guesser_model = DanGuesser(args.guesser_model_path, word2index=word2index, index2class=index2class)
 
 	if args.buzz_data_saved_flag:
 		train_exs = np.load('train_exs.npy')
@@ -669,18 +665,7 @@ if __name__ == "__main__":
 
 		print('The Examples for Train, Dev, Test have been SAVED! Use --buzz_data_saved_flag=True next time when you \
                 run the code to use saved data and not generate guesses again.')
-	#
-	# dev_guesses_and_scores = np.load('dev_guesses_and_scores.npy')
-	# dev_answers = np.load('dev_answers.npy')
-	# dev_ques_texts = np.load('dev_ques_texts.npy')
-	#
-	# dev_guesses_and_scores_trunc = dev_guesses_and_scores[:25]
-	# dev_answers_trunc = dev_answers[:25]
-	# dev_ques_texts_trunc = dev_ques_texts[:25]
-	#
-	# print(dev_guesses_and_scores_trunc[0])
-	# print(dev_answers_trunc[0])
-	# print(dev_ques_texts_trunc[0])
+
 
 	train_dataset = QuestionDataset(train_exs)
 	train_sampler = torch.utils.data.sampler.RandomSampler(train_dataset)
