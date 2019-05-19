@@ -2,6 +2,7 @@ from torch.utils.data import Dataset
 from torch.nn.utils import clip_grad_norm_
 import torch.nn as nn
 import torch
+from collections import defaultdict
 
 from typing import NamedTuple, List, Dict, Tuple, Optional, Union
 import argparse
@@ -30,7 +31,7 @@ def load_data(filename: str, limit: Optional[int] = None) -> List[Example]:
 	with open(filename) as json_data:
 		questions = json.load(json_data)["questions"][:limit]
 		for question in questions:
-			tokenized_text = nltk.word_tokenize(question['text'])
+			tokenized_text = nltk.word_tokenize(question['text'].lower())
 			label = question['page']
 			if label:
 				data.append(Example(tokenized_text, label))
@@ -62,6 +63,23 @@ def load_words(examples: List[Example]) -> Tuple[
 	word2index = {v: k for k, v in index2word.items()}
 
 	return words, word2index, index2word
+
+
+@logger('clip dataset')
+def clip_data(training_examples, dev_examples, cutoff=2):
+	ans_count = defaultdict(int)
+	for example in (training_examples + dev_examples):
+		ans_count[example.label] += 1
+	ans_keep = set([x for x in ans_count if ans_count[x] >= cutoff])
+	new_train = []
+	new_dev = []
+	for example in training_examples:
+		if example.label in ans_keep:
+			new_train.append(example)
+	for example in dev_examples:
+		if example.label in ans_keep:
+			new_dev.append(example)
+	return new_train, new_dev, len(ans_keep)/len(ans_count)
 
 
 class QuestionDataset(Dataset):
@@ -265,6 +283,8 @@ if __name__ == "__main__":
 	parser.add_argument('--save-qdataset', action='store_true', default=False)
 	parser.add_argument('--load-qdataset', action='store_true', default=False)
 	parser.add_argument('--learning-rate', type=float, default=0.001)
+	parser.add_argument('--lr-decay', type=int, default=0)
+	parser.add_argument('--trim', action='store_true', default=False)
 
 	args = parser.parse_args()
 	args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -289,6 +309,12 @@ if __name__ == "__main__":
 		dev_examples = load_data(args.dev_file)
 		test_examples = load_data(args.test_file)
 
+		if args.trim:
+			old_len_train, old_len_dev = len(training_examples), len(dev_examples)
+			training_examples, dev_examples, percent_kept = clip_data(training_examples, dev_examples)
+			print(f'Trimmed training & dev examples of {(1-percent_kept)*100}% of labels')
+			print(f'{len(training_examples)} of {old_len_train} training examples kept ({len(training_examples)/old_len_train}%)')
+			print(f'{len(dev_examples)} of {old_len_dev} dev examples kept ({len(dev_examples)/old_len_dev}%)')
 		voc, word2index, index2word = load_words(training_examples + dev_examples)
 
 		class2index, index2class = class_labels(training_examples + dev_examples)
@@ -312,9 +338,6 @@ if __name__ == "__main__":
 		if not args.load_qdataset:
 			test_dataset = QuestionDataset(test_examples, word2index, num_classes,
 									   class2index)
-			if args.save_qdataset:
-				print('Saving test dataset')
-				pickle.dump(test_dataset, open(TEST_DATASET, 'wb'))
 		test_sampler = torch.utils.data.sampler.SequentialSampler(test_dataset)
 		test_loader = torch.utils.data.DataLoader(test_dataset,
 												  batch_size=args.batch_size,
@@ -352,7 +375,9 @@ if __name__ == "__main__":
 		accuracy = 0
 		for epoch in range(args.num_epochs):
 			print(f'Start Epoch {epoch}')
-			learning_rate = args.learning_rate * ((0.5) ** (epoch//100))
+			if args.lr_decay > 0:
+				learning_rate = args.learning_rate * ((0.5) ** (epoch//args.lr_decay))
+			print(f'Learning Rate {learning_rate}')
 			train_loader = torch.utils.data.DataLoader(train_dataset,
 													   batch_size=args.batch_size,
 													   sampler=train_sampler,
@@ -365,6 +390,9 @@ if __name__ == "__main__":
 		if not args.load_qdataset:
 			test_dataset = QuestionDataset(test_examples, word2index, num_classes,
 									   class2index)
+			if args.save_qdataset:
+				print('Saving test dataset')
+				pickle.dump(test_dataset, open(TEST_DATASET, 'wb'))
 		test_sampler = torch.utils.data.sampler.SequentialSampler(test_dataset)
 		test_loader = torch.utils.data.DataLoader(test_dataset,
 												  batch_size=args.batch_size,
