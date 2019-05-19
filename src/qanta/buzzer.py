@@ -20,6 +20,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torch.nn.utils import clip_grad_norm_
+from guesser_model import Model
 
 
 # --- QUIZBOWL DATASET UTILITY FUNCTIONS - Do NOT Edit ---
@@ -84,7 +85,7 @@ class QantaDatabase:
 		'''
 		split can be {'train', 'dev', 'test'} - gets both the buzzer and guesser folds from the corresponding data file.
 		'''
-		dataset_path = os.path.join('..', 'qanta.' + split + '.json')
+		dataset_path = os.path.join('../../data/', 'qanta.' + split + '.json')
 		with open(dataset_path) as f:
 			self.dataset = json.load(f)
 
@@ -149,17 +150,21 @@ class DanGuesser:
 
 	def vectorize(self, sentence):
 		tokens = nltk.word_tokenize(sentence)
-		return [self.word2index[token] for token in tokens]
+		return [self.word2index[token] if token in self.word2index else 0 for token in tokens]
 
 	def guess(self, questions: List[str], max_n_guesses=10) -> List[List[Tuple[str, float]]]:
 		'''
 		Will output the top n guesses specified by max_n_guesses acting on a list of question texts (strings).
 		'''
-		X = []
-		for question in questions:
-			X.append(self.vectorize(question))
-		X = torch.LongTensor(X)
-		logits = self.model(X)
+		X_temp = [None]*len(questions)
+		text_len = torch.zeros(len(questions))
+		for i, question in enumerate(questions):
+			X_temp[i] = self.vectorize(question)
+			text_len[i] = len(X_temp[i])
+		X = torch.zeros((len(questions), int(max(text_len))))
+		for vector in X_temp:
+			X[i, :len(vector)] = torch.FloatTensor(vector)
+		logits = self.model(X, text_len)
 		top_n, top_i = logits.topk(max_n_guesses)
 		guesses = [None]*len(questions)
 		# for each of the questions
@@ -269,6 +274,22 @@ def generate_guesses_and_scores(model, questions, max_guesses, char_skip=50):
 			q_texts_flattened.extend(q)
 
 		# store guesses for the flattened questions
+
+
+		###################
+		##### DEBUG PRINT##
+		###################
+		print(ques_texts[0])
+		print('\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n')
+		print(q_texts_temp[0])
+		print('\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n')
+		print(q_texts_flattened[0])
+		print('\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n')
+		print(ques_texts[0][-1] == q_texts_temp[0][-1])
+
+		##################
+		##################
+
 		print('Guessing directly on %d text snippets together' % len(q_texts_flattened))
 		flattened_guesses_scores = model.guess(q_texts_flattened, max_guesses)
 
@@ -368,6 +389,29 @@ def batchify(batch):
 		x1[i, :len(question_feature_vec)].copy_(vec)
 	q_batch = {'feature_vec': x1, 'len': torch.FloatTensor(question_len), 'labels': target_labels}
 	return q_batch
+
+
+class QuestionDataset(Dataset):
+	"""
+	Pytorch data class for questions
+	"""
+
+	###You don't need to change this funtion
+	def __init__(self, examples):
+		self.questions = []
+		self.labels = []
+
+		for qq, ll in examples:
+			self.questions.append(qq)
+			self.labels.append(ll)
+
+	###You don't need to change this funtion
+	def __getitem__(self, index):
+		return self.questions[index], self.labels[index]
+
+	###You don't need to change this funtion
+	def __len__(self):
+		return len(self.questions)
 
 
 ###You don't need to change this funtion
@@ -592,7 +636,7 @@ class RNNBuzzer(nn.Module):
 
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description='Options for RNN Buzzer')
-	parser.add_argument('--guesser_model_path', type=str, default='tfidf.pickle',
+	parser.add_argument('--guesser_model_path', type=str, default='dan_debias.pt',
 	                    help='path for saving the trained guesser model')
 	parser.add_argument('--n_guesses', type=int, default=10,
 	                    help='number of top guesses to consider for creating feature vector')

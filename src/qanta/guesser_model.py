@@ -385,6 +385,8 @@ if __name__ == "__main__":
 			print(f'Start Epoch {epoch}')
 			if args.lr_decay > 0:
 				learning_rate = args.learning_rate * ((0.5) ** (epoch//args.lr_decay))
+			else:
+				learning_rate = args.learning_rate
 			print(f'Learning Rate {learning_rate}')
 			train_loader = torch.utils.data.DataLoader(train_dataset,
 													   batch_size=args.batch_size,
