@@ -181,6 +181,8 @@ class Model(nn.Module):
 
 		logits = torch.LongTensor([0.0] * self.n_classes)
 
+		input_text = input_text.type(torch.LongTensor)
+
 		embedding = self.embeddings(input_text)
 		average_embedding = embedding.sum(1) / text_len.view(embedding.size(0),
 															 -1)

@@ -144,7 +144,10 @@ class DanGuesser:
 	'''
 
 	def __init__(self, model_path, word2index, index2class):
-		self.model = torch.load(model_path)
+		if args.no_cuda:
+			self.model = torch.load(model_path, map_location='cpu')
+		else:
+			self.model = torch.load(model_path)
 		self.word2index = word2index
 		self.index2class = index2class
 
@@ -163,7 +166,8 @@ class DanGuesser:
 			text_len[i] = len(X_temp[i])
 		X = torch.zeros((len(questions), int(max(text_len))))
 		for vector in X_temp:
-			X[i, :len(vector)] = torch.FloatTensor(vector)
+			X[i, :len(vector)] = torch.LongTensor(vector)
+
 		logits = self.model(X, text_len)
 		top_n, top_i = logits.topk(max_n_guesses)
 		guesses = [None]*len(questions)
@@ -171,7 +175,7 @@ class DanGuesser:
 		for i in range(len(guesses)):
 			# the guess for that question is a max_n_guesses length list of tuples
 			# of (class label, confidence)
-			guesses[i] = [(self.index2class(ind), confidence) for ind, confidence in zip(top_i[i], top_n[i])]
+			guesses[i] = [(self.index2class[ind.item()], confidence) for ind, confidence in zip(top_i[i], top_n[i])]
 		return guesses
 
 
@@ -274,22 +278,6 @@ def generate_guesses_and_scores(model, questions, max_guesses, char_skip=50):
 			q_texts_flattened.extend(q)
 
 		# store guesses for the flattened questions
-
-
-		###################
-		##### DEBUG PRINT##
-		###################
-		print(ques_texts[0])
-		print('\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n')
-		print(q_texts_temp[0])
-		print('\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n')
-		print(q_texts_flattened[0])
-		print('\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n')
-		print(ques_texts[0][-1] == q_texts_temp[0][-1])
-
-		##################
-		##################
-
 		print('Guessing directly on %d text snippets together' % len(q_texts_flattened))
 		flattened_guesses_scores = model.guess(q_texts_flattened, max_guesses)
 
@@ -658,6 +646,7 @@ if __name__ == "__main__":
 	                    help='number of characters to skip after which buzzer should predict')
 	parser.add_argument('--checkpoint', type=int, default=50)
 	parser.add_argument('--word_map_path', type=str, default='word_maps.pkl')
+	parser.add_argument('--no-cuda', action='store_true', default=False)
 
 	args = parser.parse_args()
 
