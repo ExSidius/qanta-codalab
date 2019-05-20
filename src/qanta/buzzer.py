@@ -344,7 +344,7 @@ def create_feature_vecs_and_labels(guesses_and_scores, answers, n_guesses):
 
 		for j in range(length):
 			## YOUR CODE BELOW
-			prob_vec.append([x[1] for x in guesses_scores[j]])
+			prob_vec.append([x[1].item() for x in guesses_scores[j]])
 			labels.append(1 if guesses_scores[j][0][0] == ans[j] else 0)
 
 		xs.append(np.array(prob_vec))
@@ -705,8 +705,7 @@ if __name__ == "__main__":
 		test_exs = create_feature_vecs_and_labels(test_guesses_and_scores, test_answers, args.n_guesses)
 		# print(len(test_exs))
 		print('Saving train exs')
-		with open('train_exs.pkl', 'wb') as f:
-			pickle.dump(train_exs, f)
+		np.save('train_exs.npy', train_exs)
 		print('Done')
 		print('Saving dev exs')
 		np.save('dev_exs.npy', dev_exs)
