@@ -167,6 +167,10 @@ class DanGuesser:
 		X = torch.zeros((len(questions), int(max(text_len))))
 		for vector in X_temp:
 			X[i, :len(vector)] = torch.LongTensor(vector)
+		
+		device = torch.device("cuda:0" if (torch.cuda.is_available() and not args.no_cuda) else "cpu")
+		X = X.to(device)
+		text_len = text_len.to(device)
 
 		logits = self.model(X, text_len)
 		top_n, top_i = logits.topk(max_n_guesses)
@@ -715,7 +719,7 @@ if __name__ == "__main__":
 	test_loader = DataLoader(test_dataset, batch_size=args.batch_size, sampler=test_sampler, num_workers=0,
 	                         collate_fn=batchify)
 
-	device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+	device = torch.device("cuda:0" if (torch.cuda.is_available() and not args.no_cuda) else "cpu")
 
 	model = RNNBuzzer()
 	model.to(device)
