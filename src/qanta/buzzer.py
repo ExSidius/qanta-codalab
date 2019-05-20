@@ -20,7 +20,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torch.nn.utils import clip_grad_norm_
-from guesser_model import Model
+from qanta.guesser_model import Model
 
 
 # --- QUIZBOWL DATASET UTILITY FUNCTIONS - Do NOT Edit ---
@@ -334,6 +334,7 @@ def create_feature_vecs_and_labels(guesses_and_scores, answers, n_guesses):
 	(if n_guesses=3 and actual answers to the two questions were 'England' and 'Deep_Blue' resp.)
 	'''
 	xs, ys = [], []
+	print(f'Processing {len(answers)} guesses and scores & answers')
 	for i in range(len(answers)):
 		guesses_scores = guesses_and_scores[i]
 		ans = answers[i]
@@ -349,6 +350,7 @@ def create_feature_vecs_and_labels(guesses_and_scores, answers, n_guesses):
 		xs.append(np.array(prob_vec))
 		ys.append(np.array(labels))
 	exs = list(zip(xs, ys))
+	print('Done')
 	return exs
 
 
@@ -702,9 +704,16 @@ if __name__ == "__main__":
 		# print(len(dev_exs))
 		test_exs = create_feature_vecs_and_labels(test_guesses_and_scores, test_answers, args.n_guesses)
 		# print(len(test_exs))
-		np.save('train_exs.npy', train_exs)
+		print('Saving train exs')
+		with open('train_exs.pkl', 'wb') as f:
+			pickle.dump(train_exs, f)
+		print('Done')
+		print('Saving dev exs')
 		np.save('dev_exs.npy', dev_exs)
+		print('Done')
+		print('Saving train exs')
 		np.save('test_exs.npy', test_exs)
+		print('Done')
 
 		print('The Examples for Train, Dev, Test have been SAVED! Use --buzz_data_saved_flag=True next time when you \
                 run the code to use saved data and not generate guesses again.')
