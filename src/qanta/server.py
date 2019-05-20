@@ -1,5 +1,6 @@
 import click
 from flask import Flask, jsonify, request
+import sys
 from .guesser_model import Model
 
 from qanta.guesser import Guesser
@@ -32,7 +33,6 @@ def create_app(enable_batch=True):
     @app.route('/api/1.0/quizbowl/batch_act', methods=['POST'])
     def batch_act():
         questions = [q['text'] for q in request.json['questions']]
-
         return jsonify([
             {'guess': guess, 'buzz': buzz}
             for guess, buzz in guesser.batch_guess_and_buzz(questions)

@@ -1,12 +1,21 @@
 version: '3'
 services:
   qb:
-    image: "docker.io/entilzha/quizbowl-gpu:0.1"
+    build:
+      context: .
+      dockerfile: ./Dockerfile-gpu
+    # image: "docker.io/entilzha/quizbowl-gpu:0.1"
     ports:
       - "4861:4861"
     volumes:
       - ./src/:/src
       - ./data/:/src/data
+    devices:
+      - /dev/nvidia0
+      - /dev/nvidia-modeset
+      - /dev/nvidia-uvm-tools
+      - /dev/nvidiactl
+      - /dev/nvidia-uvm
     command: ["bash", "run.sh"]
   eval:
     image: "docker.io/entilzha/quizbowl-gpu:0.1"
