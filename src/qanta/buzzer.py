@@ -20,7 +20,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torch.nn.utils import clip_grad_norm_
-from guesser_model import Model
+from qanta.guesser_model import Model
 
 
 # --- QUIZBOWL DATASET UTILITY FUNCTIONS - Do NOT Edit ---

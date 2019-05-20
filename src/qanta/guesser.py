@@ -3,9 +3,9 @@ import pickle
 import nltk
 from os.path import dirname, abspath, join, exists
 
-from guesser_model import Model
+from qanta.guesser_model import Model
 
-MODEL_PATH = join(dirname(abspath(__file__)), 'dan_debias.pt')
+MODEL_PATH = join(dirname(abspath(__file__)), 'dan_bias.pt')
 IND_LABEL_PATH = join(dirname(abspath(__file__)), 'word_maps.pkl')
 kUNK = '<unk>'
 kPAD = '<pad>'

@@ -10,8 +10,8 @@ import json
 import nltk
 import pickle
 
-from helpers import logger
-from embedder import EMBEDDING_LENGTH, Embedder
+from qanta.helpers import logger
+from qanta.embedder import EMBEDDING_LENGTH, Embedder
 
 kUNK = '<unk>'
 kPAD = '<pad>'
