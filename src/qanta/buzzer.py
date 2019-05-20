@@ -20,7 +20,7 @@ from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torch.nn.utils import clip_grad_norm_
-from qanta.guesser_model import Model
+from guesser_model import Model
 
 
 # --- QUIZBOWL DATASET UTILITY FUNCTIONS - Do NOT Edit ---
@@ -81,7 +81,7 @@ class Question(NamedTuple):
 
 
 class QantaDatabase:
-	def __init__(self, split):
+	def __init__(self, split, class2index=None):
 		'''
 		split can be {'train', 'dev', 'test'} - gets both the buzzer and guesser folds from the corresponding data file.
 		'''
@@ -92,14 +92,17 @@ class QantaDatabase:
 		self.version = self.dataset['version']
 		self.raw_questions = self.dataset['questions']
 		self.all_questions = [Question(**q) for q in self.raw_questions]
-		self.mapped_questions = [q for q in self.all_questions if q.page is not None]
+		if (split == 'train' or split == 'dev') and class2index:
+			self.mapped_questions = [q for q in self.all_questions if q.page in class2index]
+		else:
+			self.mapped_questions = [q for q in self.all_questions if q.page is not None]
 
 		self.guess_questions = [q for q in self.mapped_questions if q.fold == 'guess' + split]
 		self.buzz_questions = [q for q in self.mapped_questions if q.fold == 'buzz' + split]
 
 
 class QuizBowlDataset:
-	def __init__(self, *, guesser=False, buzzer=False, split='train'):
+	def __init__(self, *, guesser=False, buzzer=False, split='train', class2index=None):
 		"""
 		Initialize a new quiz bowl data set
 		guesser = True/False -> to use data from the guesser fold or not
@@ -114,7 +117,7 @@ class QuizBowlDataset:
 		if guesser and buzzer:
 			print('Using QuizBowlDataset with guesser and buzzer training data, make sure you know what you are doing!')
 
-		self.db = QantaDatabase(split)
+		self.db = QantaDatabase(split, class2index)
 		self.guesser = guesser
 		self.buzzer = buzzer
 
@@ -159,7 +162,7 @@ class DanGuesser:
 		'''
 		Will output the top n guesses specified by max_n_guesses acting on a list of question texts (strings).
 		'''
-		X_temp = [None]*len(questions)
+		X_temp = [None] * len(questions)
 		text_len = torch.zeros(len(questions))
 		for i, question in enumerate(questions):
 			X_temp[i] = self.vectorize(question)
@@ -167,14 +170,14 @@ class DanGuesser:
 		X = torch.zeros((len(questions), int(max(text_len))))
 		for vector in X_temp:
 			X[i, :len(vector)] = torch.LongTensor(vector)
-		
+
 		device = torch.device("cuda:0" if (torch.cuda.is_available() and not args.no_cuda) else "cpu")
 		X = X.to(device)
 		text_len = text_len.to(device)
 
 		logits = self.model(X, text_len)
 		top_n, top_i = logits.topk(max_n_guesses)
-		guesses = [None]*len(questions)
+		guesses = [None] * len(questions)
 		# for each of the questions
 		for i in range(len(guesses)):
 			# the guess for that question is a max_n_guesses length list of tuples
@@ -654,25 +657,28 @@ if __name__ == "__main__":
 
 	args = parser.parse_args()
 
+	with open(args.word_map_path, 'rb') as f:
+		word_maps = pickle.load(f)
+	word2index = word_maps['word2index']
+	index2class = word_maps['index2class']
+	class2index = word_maps['class2index']
+
 	if args.buzzer_train_limit < 0:
-		train_buzz_questions = QuizBowlDataset(buzzer=True, split='train').data()
+		train_buzz_questions = QuizBowlDataset(buzzer=True, split='train', class2index=class2index).data()
 	else:
-		train_buzz_questions = QuizBowlDataset(buzzer=True, split='train').data()[:args.buzzer_train_limit]
+		train_buzz_questions = QuizBowlDataset(buzzer=True, split='train', class2index=class2index).data()[
+		                       :args.buzzer_train_limit]
 
 	if args.buzzer_dev_limit < 0:
-		dev_buzz_questions = QuizBowlDataset(buzzer=True, split='dev').data()
+		dev_buzz_questions = QuizBowlDataset(buzzer=True, split='dev', class2index=class2index).data()
 	else:
-		dev_buzz_questions = QuizBowlDataset(buzzer=True, split='dev').data()[:args.buzzer_dev_limit]
+		dev_buzz_questions = QuizBowlDataset(buzzer=True, split='dev', class2index=class2index).data()[
+		                     :args.buzzer_dev_limit]
 
 	if args.buzzer_test_limit < 0:
 		test_buzz_questions = QuizBowlDataset(buzzer=True, split='test').data()
 	else:
 		test_buzz_questions = QuizBowlDataset(buzzer=True, split='test').data()[:args.buzzer_test_limit]
-
-	with open(args.word_map_path, 'rb') as f:
-		word_maps = pickle.load(f)
-	word2index = word_maps['word2index']
-	index2class = word_maps['index2class']
 
 	guesser_model = DanGuesser(args.guesser_model_path, word2index=word2index, index2class=index2class)
 
@@ -702,7 +708,6 @@ if __name__ == "__main__":
 
 		print('The Examples for Train, Dev, Test have been SAVED! Use --buzz_data_saved_flag=True next time when you \
                 run the code to use saved data and not generate guesses again.')
-
 
 	train_dataset = QuestionDataset(train_exs)
 	train_sampler = torch.utils.data.sampler.RandomSampler(train_dataset)
